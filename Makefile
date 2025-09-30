@@ -29,7 +29,7 @@ help:
 # 开发模式 - 验证和生成代码
 dev:
 	@echo "🛠️ 开发模式：验证 proto 并生成代码..."
-	./unified_release.sh validate
+	@$(MAKE) proto-gen
 
 # 构建项目
 build:
@@ -78,10 +78,27 @@ push:
 	@echo "📤 推送所有更新..."
 	./unified_release.sh push
 
+# 生成 proto 代码
+proto-gen:
+	@echo "🔧 生成 proto 代码..."
+	@for proto_dir in proto/*/; do \
+		if [ -d "$$proto_dir" ] && [ -f "$${proto_dir}.git" ]; then \
+			proto_name=$$(basename "$$proto_dir"); \
+			mkdir -p "api/$$proto_name"; \
+			echo "  生成 $$proto_name proto..."; \
+			(cd "$$proto_dir" && \
+			 if ls *.proto >/dev/null 2>&1; then \
+				protoc --go_out="../../api/$$proto_name" --go_opt=paths=source_relative \
+				       --go-grpc_out="../../api/$$proto_name" --go-grpc_opt=paths=source_relative \
+				       *.proto; \
+			 fi); \
+		fi; \
+	done
+
 # 清理生成文件
 clean:
 	@echo "🧹 清理生成文件..."
-	rm -rf api/users/*.pb.go
+	rm -rf api/*/*.pb.go
 	go clean ./...
 
 # 完整发版流程（推荐）

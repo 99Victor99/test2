@@ -181,14 +181,22 @@ enhanced_personal_commit() {
         if [ -f "Makefile" ] && grep -q "proto-gen\|dev" Makefile; then
             make dev 2>/dev/null || make proto-gen 2>/dev/null || {
                 log_warning "无法通过 Makefile 生成代码，尝试直接使用 protoc"
-                # 生成所有 proto 代码
-                find proto -name "*.proto" -type f | while read proto_file; do
-                    proto_dir=$(dirname "$proto_file")
-                    proto_name=$(basename "$proto_dir")
-                    mkdir -p "api/$proto_name"
-                    protoc --go_out="api/$proto_name" --go_opt=paths=source_relative \
-                           --go-grpc_out="api/$proto_name" --go-grpc_opt=paths=source_relative \
-                           "$proto_file" 2>/dev/null || true
+                # 生成所有 proto 代码 (修复路径问题)
+                for proto_dir in proto/*/; do
+                    if [ -d "$proto_dir" ] && [ -f "${proto_dir}.git" ]; then
+                        proto_name=$(basename "$proto_dir")
+                        mkdir -p "api/$proto_name"
+                        
+                        # 进入 proto 目录使用相对路径，避免绝对路径问题
+                        (
+                            cd "$proto_dir"
+                            if ls *.proto >/dev/null 2>&1; then
+                                protoc --go_out="../../api/$proto_name" --go_opt=paths=source_relative \
+                                       --go-grpc_out="../../api/$proto_name" --go-grpc_opt=paths=source_relative \
+                                       *.proto 2>/dev/null || true
+                            fi
+                        )
+                    fi
                 done
             }
         fi
