@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  users-service:
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - ENVIRONMENT=development
+      - LOG_LEVEL=info
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/users_db?sslmode=disable
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - JWT_SECRET=your-secret-key
+      - GOODS_SERVICE_ADDR=goods-service:8081
+      - ORDERS_SERVICE_ADDR=orders-service:8082
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - microservices
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=users_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - microservices
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - microservices
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # 可选：添加其他微服务
+  # goods-service:
+  #   image: goods-service:latest
+  #   ports:
+  #     - "8081:8081"
+  #   networks:
+  #     - microservices
+
+  # orders-service:
+  #   image: orders-service:latest
+  #   ports:
+  #     - "8082:8082"
+  #   networks:
+  #     - microservices
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  microservices:
+    driver: bridge
